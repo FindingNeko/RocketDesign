@@ -1,21 +1,10 @@
-%Liquid_Rocket_Design
+%Liquid_Space_Rocket_Design
 %Bryan Rathke
 clear all, close all
-%% Historical data
-
-% Dim_v=linspace(0,60);
-% F_v=linspace(0,4000);
-% Length_v=0.005048*F_v+31.92;
-% D_v=0.00357*F_v+14.48;
-% 
-% figure(1)
-% hold on
-% plot(F_v,Length_v)
-% plot(F_v,D_v)
-% xlabel('Thrust (F)')
-% ylabel('Dimension (cm)')
 
 %% Design parameters
+prompt0='Press enter at prompts to use default values: (press enter)';
+defaults=input(prompt0);
 
 DeltaV=1721;        %Required change in velocity [m/s]
 Mpay=4914;          %Payload mass [kg]
@@ -30,15 +19,14 @@ lambda=0.98;        %Nozzle Efficiency
 
 g=9.80665;          %Standard gravity
 
-%Combustion parameters
-
-OTFR=2.3;
+OTFR=2.3;           %Combustion parameters
 FlameT=3510;   
 k=1.225;
 MM=22.1;
 R=8314/MM;          %Gas constant
 rho_f=810;
 rho_o=1142;
+
 
 %% Initial calculations, space bipropellant
 
@@ -115,8 +103,8 @@ Mtotal
 Mo=(OTFR*Mpro/(OTFR+1));
 Mf=Mpro/(1+OTFR);
 
-%% Tank mass
-
+Tburn=Isp
+%% CC and Nozzle 
 Vt_ox=1.1*(Mo/rho_o);
 Vt_f=1.1*(Mf/rho_f);
 mdot=F/(Isp*g);
@@ -167,7 +155,7 @@ if isempty(Thetan)
     Thetan=15
 end
 Ln=(De-Dt)/(2*tand(Thetan));
-prompt9='Enter "percent bell" fraction of 15 degree conical nozzle: '
+prompt9='Enter "percent bell" fraction of 15 degree conical nozzle: ';
 if (epsilon>29)
     if lambda==0.99
         Lf=0.86;
@@ -183,7 +171,7 @@ if (epsilon>29)
 else
     Lf=input(prompt9);
 end
-
+Lb=Ln*Lf;
 %% Nozzle drawing
 Rt=Dt/2;
 Re=De/2;
@@ -191,24 +179,95 @@ prompt10='Enter initial parabola angle: ';
 prompt11='Enter final parabola angle: ';
 Thetaip=input(prompt10);
 Thetafp=input(prompt11);
-% x0=linspace((-1.5*Rt),0);
-% x1=linspace(0,(Rt));
-% x2=linspace((1.376*Rt),Ln);
-% Noz0=(2.5*Rt)-(((1.5*Rt)^2)-x0.^2);
-% Noz1=(2.382*Rt)-(((.882*Rt)^2)-x1.^2);
-% %Noz2
-% figure(2)
-% plot(x0,Noz0)
-% hold on;
-% plot(x1,Noz1)
-% xlim([-2*Rt,(1.5*Ln)])
-% ylim([0,(1.5*Re)])
+if isempty(Thetaip)
+    Thetaip=36
+end
+if isempty(Thetafp)
+    Thetafp=13
+end
 figure(2)
-function h = circle(x,y,r,th)
+circled(0, 2.5*Rt, 1.5*Rt, [200:.1:270]);
+circled(0, 1.382*Rt, 0.382*Rt, [270:.1:(270+Thetaip)]);
 hold on
-xunit = r * cos(th) + x;
-yunit = r * sin(th) + y;
-h = plot(xunit, yunit);
+axis equal
+ax=gca;
+ax.XTick=[-1 -.5 0 .5 1 1.5 2 2.5];
+ax.YTick=[-1 -.75 -.5 -.25 0 .25 .5 .75 1];
+xlim([-.5,2.5]);
+ylim([-1,1]);
+xfit=[sind(36)*0.382*Rt;(sind(36)*0.382*Rt)+.00001;Lb;Lb+.01];
+yfit=[Rt+(sind(90)-sind(36))*0.382*Rt*.5;Rt+.00001+(sind(90)-sind(36))*0.382*Rt*.5;Re;Re+.01*sind(Thetafp)];
+yay=polyfit(xfit,yfit,3);
+yay1=polyval(yay,[sind(36)*0.382*Rt:.01:Lb]);
+plot([sind(36)*0.382*Rt:.01:Lb],yay1,'b')
+plot([sind(36)*0.382*Rt:.01:Lb],-yay1,'b')
+grid on
+
+hold off
+f1=-(cwall/2)/Lb;
+f2=(Re-Rt)/Lb;
+Mne=2*pi*rho_c*Lb*(3^-1*f1*f2*Lb^2+.5*((f1*Rt)+(f2*cwall*.5))*Lb + (Rt*cwall*.5));
+Mne=ceil(Mne)         %You know,
+Mn=2*Mne             %For safety
+
+Mengt=(Mc+Mn)/.4;
+Minj=.249*Mengt;
+Mabl=.352*Mengt;
+Mtcp=Meng-(Mc+Mn);
+
+
+%% Tank mass
+prompt11='Choose a tank mass factor: ';
+PhiTank=input(prompt11);
+if isempty(PhiTank)
+PhiTank=2500
+end
+prompt12='Press enter for Helium or type pressurant name: '
+pressurant=input(prompt12);
+if isempty(pressurant);
+    kpres=1.66;
+    MMpres=4.003;
+else
+    prompta="Enter pressurant's gamma value: ";
+    promptb="Enter pressurant's molecular mass: ";
+    kpres=input(prompta);
+    MMpres=input(promptb);
+end
+M_RP1_tank=2*P_ftank*Vt_f/(PhiTank*g);
+M_o_tank=2*P_otank*Vt_ox/(PhiTank*g);
+Pave=(P_ftank+P_otank)/2;
+P_He=21000000;
+Tini=273;
+Tfin=Tini*(Pave/P_He)^((kpres-1)/kpres);
+
+
+ 
+Mpres=1.05*Pave*(Vt_f+Vt_ox)*MMpres/(8314*Tfin);
+Vpres=0;
+Vpres2=1;
+while (Vpres~=Vpres2)
+Vpres=Mpres*8312*Tini/(P_He*MMpres);
+Mpres2=1.05*Pave*(Vt_f+Vt_ox+Vpres)*MMpres/(8314*Tfin);
+Vpres2=Mpres2*8312*Tini/(P_He*MMpres);
+Mpres=1.05*Pave*(Vt_f+Vt_ox+Vpres2)*MMpres/(8314*Tfin);
+end
+Mprest=P_He*Vpres/(g*6350);
+Mtvc=Meng-Mc-Mne;
+Mstr=(Mc+Mn+M_o_tank+M_RP1_tank+Mprest)*.1;
+Mtot=Mprest+Mpres+M_o_tank+Mo+M_RP1_tank+Mf+Mengt+Mtcp+Mstr;
+tburn=(Mo+Mf)/mdot;
+Itot=Isp*(Mo+Mf);
+Mthr=Mc+Mn;
+odot=2.3*(mdot/3.3);
+fdot=mdot/3.3;
+table(F,tburn,Isp,Itot,mdot,fdot,odot)
+table(Mf,Mo,Mpres,Mthr,M_RP1_tank,M_o_tank,Mprest,Mtcp,Mstr)
+
+function h = circled(x,y,r,th)
+hold on
+xunit = r * cosd(th) + x;
+yunit = r * sind(th) + y;
+h = plot(xunit, yunit, 'b');
+h = plot(xunit,-yunit, 'b');
 hold off
 end
-circle
